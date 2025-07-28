@@ -1,1 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stickman vs. Zombies - World Camera</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #1a1a2e;
+            font-family: 'Courier New', Courier, monospace;
+            color: #e0e0e0;
+        }
+        .container {
+            text-align: center;
+            position: relative;
+        }
+        h1 {
+            color: #e0e0e0;
+            text-shadow: 2px 2px 4px #000;
+        }
+        canvas {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            background-color: #16222A; 
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+            max-width: 100%;
+            height: auto;
+        }
+        /* Styles for the shop overlay */
+        #shop-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 600px;
+            padding: 40px;
+            background: rgba(10, 20, 40, 0.9);
+            border: 3px solid #a0c4ff;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(160, 196, 255, 0.5);
+            text-align: center;
+            color: white;
+            display: none; /* Hidden by default */
+            z-index: 100;
+        }
+        #shop-overlay h2 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: #e0e0e0;
+            text-shadow: 0 0 10px #a0c4ff;
+        }
+        #shop-overlay p {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+        }
+        .shop-button {
+            display: inline-block;
+            padding: 15px 30px;
+            margin: 0 15px;
+            font-size: 1.2em;
+            color: white;
+            background: linear-gradient(145deg, #4a5568, #2d3748);
+            border: 2px solid #a0c4ff;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-shadow: 1px 1px 2px black;
+        }
+        .shop-button:hover {
+            background: linear-gradient(145deg, #a0c4ff, #6b7db3);
+            box-shadow: 0 0 15px #a0c4ff;
+            color: #1a1a2e;
+            text-shadow: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Stickman vs. Zombies</h1>
+        <canvas id="gameCanvas"></canvas>
+        <!-- Shop Overlay HTML -->
+        <div id="shop-overlay">
+            <h2>Weapons & Armor</h2>
+            <p>Prepare for the next level!</p>
+            <button class="shop-button" id="continue-button">Continue</button>
+            <button class="shop-button" id="exit-button">Exit Game</button>
+        </div>
+    </div>
 
+    <script>
+        // --- Canvas Setup ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const baseWidth = 800;
+        const baseHeight = 600;
+        canvas.width = baseWidth;
+        canvas.height = baseHeight;
+
+        // --- Game State & World Setup ---
+        let gameState = 'playing';
+        const levelWidth = 3200; // The world is now 4 screens wide
+        let cameraOffsetX = 0;
+
+        // --- Asset Loader ---
+        const animations = {
+            player_idle: [],
+            player_walk: [],
+            player_jump: [],
+        };
+        const gameImages = {
+            background: null
+        };
+
+        const assetSources = {
+            animations: {
+                player_idle: [
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_Idle_0001.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_Idle_0002.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_Idle_0003.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_Idle_0004.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_Idle_0005.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_Idle_0006.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_Idle_0007.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_Idle_0008.png'
+                ],
+                player_walk: [
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_walk_0009.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_walk_0010.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_walk_0011.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_walk_0012.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_walk_0013.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_walk_0014.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_walk_0015.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_walk_0016.png'
+                ],
+                player_jump: [
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_jump_0043.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_jump_0044.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_jump_0045.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_jump_0046.png',
+                    'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/fighter_jump_0047.png'
+                ]
+            },
+            images: {
+                background: 'https://raw.githubusercontent.com/xohbeats/sticksurvival/main/images/background.png'
+            }
+        };
+
+        let totalAssets = 0;
+        let loadedAssets = 0;
+        for (const type in assetSources.animations) {
+            totalAssets += assetSources.animations[type].length;
+        }
+        for (const key in assetSources.images) {
+            totalAssets++;
+        }
+
+        function loadAssets(callback) {
+            for (const state in assetSources.animations) {
+                assetSources.animations[state].forEach(src => {
+                    const img = new Image();
+                    img.src = src;
+                    img.onload = () => {
+                        loadedAssets++;
+                        animations[state].push(img);
+                        if (loadedAssets === totalAssets) callback();
+                    };
+                    img.onerror = () => console.error(`Failed to load animation frame: ${src}`);
+                });
+            }
+            for (const key in assetSources.images) {
+                const img = new Image();
+                const imageUrl = assetSources.images[key];
+                img.src = imageUrl;
+                img.onload = () => {
+                    loadedAssets++;
+                    gameImages[key] = img;
+                    if (loadedAssets === totalAssets) callback();
+                };
+                img.onerror = () => console.error(`Failed to load image: ${imageUrl}`);
+            }
+        }
+
+        // --- Input Handler ---
+        class InputHandler {
+            constructor() {
+                this.keys = new Set();
+                window.addEventListener('keydown', (e) => this.keys.add(e.key));
+                window.addEventListener('keyup', (e) => this.keys.delete(e.key));
+            }
+        }
+        
+        // --- Player Class ---
+        class Player {
+            constructor(gameWidth, gameHeight) {
+                this.gameWidth = gameWidth;
+                this.gameHeight = gameHeight;
+                this.groundLevel = this.gameHeight - 50;
+                this.width = 80; 
+                this.height = 140;
+                // 'x' and 'y' are now WORLD coordinates
+                this.x = 400;
+                this.y = this.groundLevel - this.height; 
+                this.speed = 4.5; // Slightly faster speed
+                this.vx = 0;
+                this.vy = 0;
+                this.gravity = 0.8;
+                this.jumpStrength = -19;
+                this.onGround = true;
+                this.health = 3;
+                this.maxHealth = 3;
+                this.animations = { 
+                    idle: animations.player_idle, 
+                    walk: animations.player_walk,
+                    jump: animations.player_jump
+                };
+                this.state = 'idle';
+                this.facing = 'right';
+                this.currentFrame = 0;
+                this.animationSpeed = 6;
+                this.frameCount = 0;
+            }
+
+            draw(context, cameraOffsetX) {
+                const drawWidth = 200;
+                const drawHeight = 200;
+                // Draw position is now relative to the camera
+                const screenX = this.x - cameraOffsetX;
+                const screenY = this.y;
+                const drawX = screenX - (drawWidth - this.width) / 2;
+                const drawY = screenY - (drawHeight - this.height);
+
+                context.save(); 
+                if (this.facing === 'left') {
+                    context.translate(drawX + drawWidth, drawY);
+                    context.scale(-1, 1);
+                    context.drawImage(this.getCurrentFrame(), 0, 0, drawWidth, drawHeight);
+                } else {
+                    context.drawImage(this.getCurrentFrame(), drawX, drawY, drawWidth, drawHeight);
+                }
+                context.restore();
+            }
+
+            update(input, platforms) {
+                if (input.keys.has('d') || input.keys.has('ArrowRight')) {
+                    this.vx = this.speed;
+                    this.facing = 'right';
+                } else if (input.keys.has('a') || input.keys.has('ArrowLeft')) {
+                    this.vx = -this.speed;
+                    this.facing = 'left';
+                } else {
+                    this.vx = 0;
+                }
+
+                if ((input.keys.has('w') || input.keys.has('ArrowUp') || input.keys.has(' ')) && this.onGround) {
+                    this.vy = this.jumpStrength;
+                    this.onGround = false;
+                }
+
+                // --- Horizontal Movement & Collision ---
+                this.x += this.vx;
+                platforms.forEach(platform => {
+                    if (this.isColliding(platform)) {
+                        if (this.vx > 0) this.x = platform.x - this.width;
+                        else if (this.vx < 0) this.x = platform.x + platform.width;
+                    }
+                });
+                
+                // Clamp player to world boundaries
+                if (this.x < 0) this.x = 0;
+                if (this.x > levelWidth - this.width) this.x = levelWidth - this.width;
+
+
+                // --- Vertical Movement & Collision ---
+                if (!this.onGround) this.vy += this.gravity;
+                this.y += this.vy;
+                
+                this.onGround = false;
+                if (this.y + this.height >= this.groundLevel) {
+                    this.y = this.groundLevel - this.height;
+                    this.vy = 0;
+                    this.onGround = true;
+                }
+                
+                platforms.forEach(platform => {
+                    if (this.isColliding(platform)) {
+                        if (this.vy > 0) {
+                            const previousBottom = (this.y - this.vy) + this.height;
+                            if (previousBottom <= platform.y) {
+                                this.y = platform.y - this.height;
+                                this.vy = 0;
+                                this.onGround = true;
+                            }
+                        } else if (this.vy < 0) {
+                            this.y = platform.y + platform.height;
+                            this.vy = 0;
+                        }
+                    }
+                });
+
+                if (this.onGround) this.setState(this.vx !== 0 ? 'walk' : 'idle');
+                else this.setState('jump');
+                
+                this.frameCount++;
+                if (this.frameCount >= this.animationSpeed) {
+                    this.frameCount = 0;
+                    const currentAnimation = this.animations[this.state];
+                    if (currentAnimation.length > 0) {
+                        this.currentFrame = (this.currentFrame + 1) % currentAnimation.length;
+                    }
+                }
+            }
+            
+            isColliding(other) {
+                if (!other.active) return false;
+                return (
+                    this.x < other.x + other.width &&
+                    this.x + this.width > other.x &&
+                    this.y < other.y + other.height &&
+                    this.y + this.height > other.y
+                );
+            }
+
+            getCurrentFrame() {
+                return this.animations[this.state][this.currentFrame] || this.animations.idle[0];
+            }
+
+            setState(newState) {
+                if (this.state !== newState) {
+                    this.state = newState;
+                    this.currentFrame = 0;
+                }
+            }
+        }
+        
+        // --- Vial Class ---
+        class Vial {
+            constructor(x, y) {
+                this.x = x; // World coordinate
+                this.y = y; // World coordinate
+                this.width = 25;
+                this.height = 40;
+                this.active = true;
+                this.pulseSize = Math.random() * 10; // Randomize starting pulse
+                this.pulseSpeed = 0.1;
+            }
+
+            draw(context, cameraOffsetX) {
+                if (!this.active) return;
+                
+                this.pulseSize += this.pulseSpeed;
+                if (this.pulseSize > 5 || this.pulseSize < -5) this.pulseSpeed *= -1;
+
+                const screenX = this.x - cameraOffsetX;
+                const screenY = this.y;
+
+                context.save();
+                context.fillStyle = 'rgba(173, 216, 230, 0.3)';
+                context.beginPath();
+                context.arc(screenX + this.width / 2, screenY + this.height / 2, 30 + this.pulseSize, 0, Math.PI * 2);
+                context.fill();
+                
+                context.fillStyle = '#00FFFF';
+                context.fillRect(screenX, screenY, this.width, this.height);
+                context.fillStyle = '#FFFFFF';
+                context.fillRect(screenX + 5, screenY + 5, this.width - 10, 5);
+                context.restore();
+            }
+        }
+
+        // --- Exit Portal Class ---
+        class ExitPortal {
+            constructor(x, y) {
+                this.x = x; // World coordinate
+                this.y = y;
+                this.width = 80;
+                this.height = 80;
+                this.radius = 40;
+                this.angle = 0;
+                this.active = true;
+            }
+
+            draw(context, cameraOffsetX) {
+                this.angle += 0.1;
+                const screenX = this.x - cameraOffsetX;
+                const screenY = this.y;
+
+                context.save();
+                context.translate(screenX, screenY);
+                context.rotate(this.angle);
+                for (let i = 0; i < 6; i++) {
+                    context.fillStyle = `hsl(${this.angle * 20 + i * 60}, 100%, 70%)`;
+                    context.beginPath();
+                    context.arc(0, 0, this.radius, i * Math.PI / 3, (i + 1) * Math.PI / 3);
+                    context.lineTo(0, 0);
+                    context.fill();
+                }
+                context.restore();
+            }
+        }
+
+        // --- UI Function ---
+        function drawUI(context, player, vials) {
+            context.save();
+            context.shadowOffsetX = 2;
+            context.shadowOffsetY = 2;
+            context.shadowColor = 'black';
+            context.shadowBlur = 2;
+            context.font = '24px Courier New';
+            context.fillStyle = 'white';
+            
+            context.fillText('Health:', 20, 40);
+            for (let i = 0; i < player.maxHealth; i++) {
+                const heartX = 120 + (i * 45);
+                const heartY = 20;
+                context.fillStyle = i < player.health ? 'red' : 'grey';
+                context.beginPath();
+                context.moveTo(heartX, heartY + 10);
+                context.bezierCurveTo(heartX, heartY, heartX - 15, heartY, heartX - 15, heartY + 10);
+                context.bezierCurveTo(heartX - 15, heartY + 20, heartX, heartY + 30, heartX, heartY + 30);
+                context.bezierCurveTo(heartX, heartY + 30, heartX + 15, heartY + 20, heartX + 15, heartY + 10);
+                context.bezierCurveTo(heartX + 15, heartY, heartX, heartY, heartX, heartY + 10);
+                context.fill();
+            }
+
+            const collectedVials = vials.filter(v => !v.active).length;
+            context.fillStyle = 'white';
+            context.fillText(`Vials: ${collectedVials} / ${vials.length}`, baseWidth - 180, 40);
+
+            if (gameState === 'level_complete') {
+                context.font = '50px Courier New';
+                context.textAlign = 'center';
+                context.fillStyle = '#00FF00';
+                context.fillText('LEVEL COMPLETE!', baseWidth / 2, baseHeight / 2);
+                context.font = '20px Courier New';
+                context.fillText('Proceed to the exit!', baseWidth / 2, baseHeight / 2 + 40);
+            }
+            context.restore();
+        }
+
+        // --- Game Initialization ---
+        const input = new InputHandler();
+        let player;
+        let lastTime = 0;
+        let vials = [];
+        let platforms = [];
+        let exitPortal = null;
+
+        function resetLevel() {
+            platforms = [
+                { x: 80, y: 485, width: 150, height: 20 },
+                { x: 570, y: 485, width: 150, height: 20 },
+                { x: 320, y: 340, width: 155, height: 25 },
+                { x: 0, y: 225, width: 180, height: 25 },
+                { x: 620, y: 225, width: 180, height: 25 },
+                // New platforms for the expanded world
+                { x: 950, y: 400, width: 200, height: 25 },
+                { x: 1250, y: 300, width: 150, height: 25 },
+                { x: 1600, y: 485, width: 150, height: 20 }, // Another car
+                { x: 2000, y: 350, width: 250, height: 25 },
+                { x: 2500, y: 250, width: 100, height: 25 },
+                { x: 2800, y: 400, width: 150, height: 25 },
+            ];
+            
+            vials = [
+                new Vial(150, 445), // On first car
+                new Vial(1325, 260), // On a high platform
+                new Vial(2535, 210)  // On a distant, small platform
+            ];
+
+            exitPortal = new ExitPortal(levelWidth - 100, baseHeight - 90);
+
+            gameState = 'playing';
+            player.x = 400;
+            player.y = player.groundLevel - player.height;
+            player.vx = 0;
+            player.vy = 0;
+        }
+
+        function animate(timestamp) {
+            if (gameState === 'shop') {
+                document.getElementById('shop-overlay').style.display = 'block';
+                return;
+            }
+
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // --- Update Camera ---
+            cameraOffsetX = player.x - canvas.width / 2;
+            // Clamp camera to world boundaries
+            cameraOffsetX = Math.max(0, Math.min(levelWidth - canvas.width, cameraOffsetX));
+
+            // --- Draw Background with Parallax ---
+            if (gameImages.background) {
+                const parallaxFactor = 0.5;
+                const bgX = -(cameraOffsetX * parallaxFactor);
+                // Use modulo to wrap the background image for an infinite effect
+                const wrappedBgX = bgX % baseWidth;
+                ctx.drawImage(gameImages.background, wrappedBgX, 0, canvas.width, canvas.height);
+                // Draw the second image to fill the gap
+                ctx.drawImage(gameImages.background, wrappedBgX + baseWidth, 0, canvas.width, canvas.height);
+            }
+
+            // --- Update and Draw Game Objects ---
+            player.update(input, platforms);
+            player.draw(ctx, cameraOffsetX);
+
+            platforms.forEach(p => {
+                // To visualize platforms (optional debugging)
+                // ctx.fillStyle = 'rgba(255,0,0,0.3)';
+                // ctx.fillRect(p.x - cameraOffsetX, p.y, p.width, p.height);
+            });
+
+            vials.forEach(vial => {
+                vial.draw(ctx, cameraOffsetX);
+                if (player.isColliding(vial)) {
+                    vial.active = false;
+                    const allCollected = vials.every(v => !v.active);
+                    if (allCollected) gameState = 'level_complete';
+                }
+            });
+
+            if (gameState === 'level_complete') {
+                exitPortal.draw(ctx, cameraOffsetX);
+                if (player.isColliding(exitPortal)) {
+                    gameState = 'shop';
+                }
+            }
+            
+            drawUI(ctx, player, vials);
+            
+            requestAnimationFrame(animate);
+        }
+
+        // --- Start Game ---
+        ctx.fillStyle = 'white';
+        ctx.font = '20px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('Loading assets...', canvas.width / 2, canvas.height / 2);
+        
+        loadAssets(() => {
+            player = new Player(canvas.width, canvas.height);
+            resetLevel();
+            animate(0);
+        });
+
+        // Shop button logic
+        document.getElementById('continue-button').addEventListener('click', () => {
+            document.getElementById('shop-overlay').style.display = 'none';
+            resetLevel(); 
+            requestAnimationFrame(animate);
+        });
+        document.getElementById('exit-button').addEventListener('click', () => {
+            document.getElementById('shop-overlay').innerHTML = '<h2>Thanks for playing!</h2>';
+        });
+
+    </script>
+</body>
+</html>
